@@ -1,9 +1,16 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import * as yup from "yup";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { Location } from "../types";
 import { initialLocations } from "../api/locations";
+
+import PageHeader from "../components/PageHeader";
+import FormCard from "../components/FormCard";
+import InputField from "../components/InputField";
+import PrimaryButton from "../components/PrimaryButton";
+import SecondaryButton from "../components/SecondaryButton";
+import ViewModal from "../components/ViewModal";
 
 // ✅ Yup validation schema
 const locationSchema = yup.object({
@@ -36,6 +43,7 @@ const LocationPage: React.FC = () => {
     register,
     handleSubmit,
     reset,
+    setError, // 👈 added for duplicate validation
     formState: { errors },
   } = useForm<LocationFormValues>({
     resolver: yupResolver(locationSchema),
@@ -63,20 +71,28 @@ const LocationPage: React.FC = () => {
         pincode: editingRow.pincode,
       });
     } else {
-      reset({
-        locationCode: "",
-        locationName: "",
-        regionCode: "",
-        countryCode: "",
-        stateCode: "",
-        city: "",
-        pincode: "",
-      });
+      reset();
     }
   }, [editingRow, reset]);
 
-  // CREATE / UPDATE
+  // CREATE / UPDATE with duplicate check
   const onSubmit = (data: LocationFormValues) => {
+    // 🔍 1) DUPLICATE CHECK for locationCode
+    const isDuplicate = rows.some(
+      (row) =>
+        row.locationCode.toLowerCase() === data.locationCode.toLowerCase() &&
+        row.id !== editingId
+    );
+
+    if (isDuplicate) {
+      setError("locationCode", {
+        type: "manual",
+        message: "Location Code already exists. It must be unique.",
+      });
+      return; // ❌ stop save
+    }
+
+    // 2) Normal create/update
     if (editingId === null) {
       const newRow: Location = {
         id: rows.length > 0 ? Math.max(...rows.map((r) => r.id)) + 1 : 1,
@@ -84,11 +100,10 @@ const LocationPage: React.FC = () => {
       };
       setRows((prev) => [...prev, newRow]);
     } else {
-      // 🔒 do not allow locationCode change on update
       setRows((prev) =>
         prev.map((row) =>
           row.id === editingId
-            ? { ...row, ...data, locationCode: row.locationCode }
+            ? { ...row, ...data, locationCode: row.locationCode } // keep code fixed
             : row
         )
       );
@@ -102,7 +117,6 @@ const LocationPage: React.FC = () => {
   const handleEdit = (row: Location) => {
     setEditingId(row.id);
     setIsFormOpen(true);
-    setViewLocation(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -113,9 +127,6 @@ const LocationPage: React.FC = () => {
         setEditingId(null);
         reset();
         setIsFormOpen(false);
-      }
-      if (viewLocation && viewLocation.id === id) {
-        setViewLocation(null);
       }
     }
   };
@@ -130,274 +141,123 @@ const LocationPage: React.FC = () => {
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="mx-auto max-w-6xl space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-slate-800">
-            Location Master
-          </h1>
-          <button
-            type="button"
-            onClick={() => {
-              setEditingId(null);
-              reset();
-              setIsFormOpen(true);
-              setViewLocation(null);
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-blue-700"
-          >
-            + Add New
-          </button>
-        </div>
-
-        {/* 🔍 VIEW-ONLY PANEL */}
-        {viewLocation && (
-          <div className="rounded-xl bg-white p-5 shadow">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-800">
-                View Location
-              </h2>
-              <button
-                type="button"
-                onClick={() => setViewLocation(null)}
-                className="text-sm text-slate-500 hover:underline"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Location Code
-                </label>
-                <input
-                  value={viewLocation.locationCode}
-                  readOnly
-                  className="w-full rounded-md border bg-slate-100 px-3 py-2 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Location Name
-                </label>
-                <input
-                  value={viewLocation.locationName}
-                  readOnly
-                  className="w-full rounded-md border bg-slate-100 px-3 py-2 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Region Code
-                </label>
-                <input
-                  value={viewLocation.regionCode}
-                  readOnly
-                  className="w-full rounded-md border bg-slate-100 px-3 py-2 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Country Code
-                </label>
-                <input
-                  value={viewLocation.countryCode}
-                  readOnly
-                  className="w-full rounded-md border bg-slate-100 px-3 py-2 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  State Code
-                </label>
-                <input
-                  value={viewLocation.stateCode}
-                  readOnly
-                  className="w-full rounded-md border bg-slate-100 px-3 py-2 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">City</label>
-                <input
-                  value={viewLocation.city}
-                  readOnly
-                  className="w-full rounded-md border bg-slate-100 px-3 py-2 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Pincode
-                </label>
-                <input
-                  value={viewLocation.pincode}
-                  readOnly
-                  className="w-full rounded-md border bg-slate-100 px-3 py-2 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-        )}
+        <PageHeader
+          title="Location Master"
+          onAddNew={() => {
+            setEditingId(null);
+            reset();
+            setIsFormOpen(true);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+        />
 
         {/* Form */}
         {isFormOpen && (
-          <div className="rounded-xl bg-white p-5 shadow">
-            <h2 className="mb-4 text-lg font-medium text-slate-800">
-              {editingId === null ? "Add Location" : `Edit Location #${editingId}`}
-            </h2>
-
+          <FormCard
+            title={editingId === null ? "Add Location" : "Edit Location"}
+          >
             <form
               onSubmit={handleSubmit(onSubmit)}
               className="grid gap-4 md:grid-cols-2"
             >
-              {/* Location Code (🔒 when editing) */}
-              <div className="flex flex-col">
-                <label className="mb-1 text-sm font-medium text-slate-700">
-                  Location Code <span className="text-red-500">*</span>
-                </label>
+              <InputField
+                label="Location Code"
+                required
+                error={errors.locationCode?.message}
+              >
                 <input
                   {...register("locationCode")}
-                  readOnly={!!editingId}
-                  className={
-                    "rounded-lg px-3 py-2 text-sm outline-none " +
-                    (editingId
-                      ? "border-slate-300 bg-slate-100 cursor-not-allowed"
-                      : "border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500")
-                  }
+                  disabled={editingId !== null}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none disabled:bg-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   placeholder="Enter Location Code"
                 />
-                {errors.locationCode && (
-                  <span className="mt-1 text-xs text-red-500">
-                    {errors.locationCode.message}
-                  </span>
-                )}
-              </div>
+              </InputField>
 
-              {/* Location Name */}
-              <div className="flex flex-col">
-                <label className="mb-1 text-sm font-medium text-slate-700">
-                  Location Name <span className="text-red-500">*</span>
-                </label>
+              <InputField
+                label="Location Name"
+                required
+                error={errors.locationName?.message}
+              >
                 <input
                   {...register("locationName")}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   placeholder="Enter Location Name"
                 />
-                {errors.locationName && (
-                  <span className="mt-1 text-xs text-red-500">
-                    {errors.locationName.message}
-                  </span>
-                )}
-              </div>
+              </InputField>
 
-              {/* Region Code */}
-              <div className="flex flex-col">
-                <label className="mb-1 text-sm font-medium text-slate-700">
-                  Region Code <span className="text-red-500">*</span>
-                </label>
+              <InputField
+                label="Region Code"
+                required
+                error={errors.regionCode?.message}
+              >
                 <input
                   {...register("regionCode")}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   placeholder="Enter Region Code"
                 />
-                {errors.regionCode && (
-                  <span className="mt-1 text-xs text-red-500">
-                    {errors.regionCode.message}
-                  </span>
-                )}
-              </div>
+              </InputField>
 
-              {/* Country Code */}
-              <div className="flex flex-col">
-                <label className="mb-1 text-sm font-medium text-slate-700">
-                  Country Code <span className="text-red-500">*</span>
-                </label>
+              <InputField
+                label="Country Code"
+                required
+                error={errors.countryCode?.message}
+              >
                 <input
                   {...register("countryCode")}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   placeholder="Enter Country Code"
                 />
-                {errors.countryCode && (
-                  <span className="mt-1 text-xs text-red-500">
-                    {errors.countryCode.message}
-                  </span>
-                )}
-              </div>
+              </InputField>
 
-              {/* State Code */}
-              <div className="flex flex-col">
-                <label className="mb-1 text-sm font-medium text-slate-700">
-                  State Code <span className="text-red-500">*</span>
-                </label>
+              <InputField
+                label="State Code"
+                required
+                error={errors.stateCode?.message}
+              >
                 <input
                   {...register("stateCode")}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   placeholder="Enter State Code"
                 />
-                {errors.stateCode && (
-                  <span className="mt-1 text-xs text-red-500">
-                    {errors.stateCode.message}
-                  </span>
-                )}
-              </div>
+              </InputField>
 
-              {/* City */}
-              <div className="flex flex-col">
-                <label className="mb-1 text-sm font-medium text-slate-700">
-                  City <span className="text-red-500">*</span>
-                </label>
+              <InputField
+                label="City"
+                required
+                error={errors.city?.message}
+              >
                 <input
                   {...register("city")}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   placeholder="Enter City"
                 />
-                {errors.city && (
-                  <span className="mt-1 text-xs text-red-500">
-                    {errors.city.message}
-                  </span>
-                )}
-              </div>
+              </InputField>
 
-              {/* Pincode */}
-              <div className="flex flex-col">
-                <label className="mb-1 text-sm font-medium text-slate-700">
-                  Pincode <span className="text-red-500">*</span>
-                </label>
+              <InputField
+                label="Pincode"
+                required
+                error={errors.pincode?.message}
+              >
                 <input
                   {...register("pincode")}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   placeholder="Enter Pincode"
                 />
-                {errors.pincode && (
-                  <span className="mt-1 text-xs text-red-500">
-                    {errors.pincode.message}
-                  </span>
-                )}
-              </div>
+              </InputField>
 
-              {/* Buttons */}
               <div className="mt-2 flex gap-3 md:col-span-2">
-                <button
+                <PrimaryButton
                   type="submit"
-                  className="rounded-lg bg-green-600 px-5 py-2 text-sm font-medium text-white shadow hover:bg-green-700"
-                >
-                  {editingId === null ? "Save" : "Update"}
-                </button>
-                <button
+                  label={editingId === null ? "Save" : "Update"}
+                />
+                <SecondaryButton
                   type="button"
+                  label="Clear / Cancel"
                   onClick={handleCancel}
-                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-                >
-                  Clear / Cancel
-                </button>
+                />
               </div>
             </form>
-          </div>
+          </FormCard>
         )}
 
         {/* Data Table */}
@@ -483,6 +343,46 @@ const LocationPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* View-only Modal */}
+      <ViewModal
+        title="View Location"
+        isOpen={!!viewLocation}
+        onClose={() => setViewLocation(null)}
+      >
+        {viewLocation && (
+          <div className="grid gap-4 md:grid-cols-2 text-sm">
+            <div>
+              <strong>Location Code:</strong>
+              <div>{viewLocation.locationCode}</div>
+            </div>
+            <div>
+              <strong>Location Name:</strong>
+              <div>{viewLocation.locationName}</div>
+            </div>
+            <div>
+              <strong>Region Code:</strong>
+              <div>{viewLocation.regionCode}</div>
+            </div>
+            <div>
+              <strong>Country Code:</strong>
+              <div>{viewLocation.countryCode}</div>
+            </div>
+            <div>
+              <strong>State Code:</strong>
+              <div>{viewLocation.stateCode}</div>
+            </div>
+            <div>
+              <strong>City:</strong>
+              <div>{viewLocation.city}</div>
+            </div>
+            <div>
+              <strong>Pincode:</strong>
+              <div>{viewLocation.pincode}</div>
+            </div>
+          </div>
+        )}
+      </ViewModal>
     </div>
   );
 };

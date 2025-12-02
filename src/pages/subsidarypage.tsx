@@ -1,9 +1,16 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import * as yup from "yup";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { Subsidiary } from "../types";
 import { initialSubsidiaries } from "../api/subsidary";
+
+import PageHeader from "../components/PageHeader";
+import FormCard from "../components/FormCard";
+import InputField from "../components/InputField";
+import PrimaryButton from "../components/PrimaryButton";
+import SecondaryButton from "../components/SecondaryButton";
+import ViewModal from "../components/ViewModal";
 
 // ✅ Yup validation schema
 const subsidiarySchema = yup.object({
@@ -24,8 +31,8 @@ type SubsidiaryFormValues = yup.InferType<typeof subsidiarySchema>;
 const SubsidiaryPage: React.FC = () => {
   const [rows, setRows] = useState<Subsidiary[]>(initialSubsidiaries);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [isFormOpen, setIsFormOpen] = useState(false); // show/hide form
-  const [viewSub, setViewSub] = useState<Subsidiary | null>(null); // view-only panel
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [viewSubsidiary, setViewSubsidiary] = useState<Subsidiary | null>(null);
 
   const editingRow = useMemo(
     () => rows.find((r) => r.id === editingId) ?? null,
@@ -36,7 +43,7 @@ const SubsidiaryPage: React.FC = () => {
     register,
     handleSubmit,
     reset,
-    setError,
+    setError, // 👈 for duplicate validation
     formState: { errors },
   } = useForm<SubsidiaryFormValues>({
     resolver: yupResolver(subsidiarySchema),
@@ -60,18 +67,28 @@ const SubsidiaryPage: React.FC = () => {
         organizationCode: editingRow.organizationCode,
       });
     } else {
-      reset({
-        subsidiaryName: "",
-        subsidiaryCode: "",
-        subsidiaryDescription: "",
-        locationCode: "",
-        organizationCode: "",
-      });
+      reset();
     }
   }, [editingRow, reset]);
 
-  // CREATE / UPDATE
+  // CREATE / UPDATE with duplicate check
   const onSubmit = (data: SubsidiaryFormValues) => {
+    // 🔍 1) DUPLICATE CHECK for subsidiaryCode
+    const isDuplicate = rows.some(
+      (row) =>
+        row.subsidiaryCode.toLowerCase() ===
+          data.subsidiaryCode.toLowerCase() && row.id !== editingId
+    );
+
+    if (isDuplicate) {
+      setError("subsidiaryCode", {
+        type: "manual",
+        message: "Subsidiary Code already exists. It must be unique.",
+      });
+      return; // ❌ stop save
+    }
+
+    // 2) Normal create / update
     if (editingId === null) {
       const newRow: Subsidiary = {
         id: rows.length > 0 ? Math.max(...rows.map((r) => r.id)) + 1 : 1,
@@ -79,28 +96,23 @@ const SubsidiaryPage: React.FC = () => {
       };
       setRows((prev) => [...prev, newRow]);
     } else {
-      // 🔒 Do not allow subsidiaryCode change when editing
       setRows((prev) =>
         prev.map((row) =>
           row.id === editingId
-            ? {
-                ...row,
-                ...data,
-                subsidiaryCode: row.subsidiaryCode,
-              }
+            ? { ...row, ...data, subsidiaryCode: row.subsidiaryCode } // keep code fixed
             : row
         )
       );
     }
+
     setEditingId(null);
     reset();
-    setIsFormOpen(false); // close form
+    setIsFormOpen(false);
   };
 
   const handleEdit = (row: Subsidiary) => {
     setEditingId(row.id);
     setIsFormOpen(true);
-    setViewSub(null); // hide view panel when editing
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -111,9 +123,6 @@ const SubsidiaryPage: React.FC = () => {
         setEditingId(null);
         reset();
         setIsFormOpen(false);
-      }
-      if (viewSub && viewSub.id === id) {
-        setViewSub(null);
       }
     }
   };
@@ -128,223 +137,105 @@ const SubsidiaryPage: React.FC = () => {
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="mx-auto max-w-6xl space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-slate-800">
-            Subsidiary Master
-          </h1>
-          <button
-            type="button"
-            onClick={() => {
-              setEditingId(null);
-              reset();
-              setIsFormOpen(true);
-              setViewSub(null); // hide view when adding
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-blue-700"
-          >
-            + Add New
-          </button>
-        </div>
-
-        {/* 🔍 VIEW-ONLY PANEL */}
-        {viewSub && (
-          <div className="rounded-xl bg-white p-5 shadow">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-800">
-                View Subsidiary
-              </h2>
-              <button
-                type="button"
-                onClick={() => setViewSub(null)}
-                className="text-sm text-slate-500 hover:underline"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Subsidiary Name
-                </label>
-                <input
-                  value={viewSub.subsidiaryName}
-                  readOnly
-                  className="w-full rounded-md border bg-slate-100 px-3 py-2 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Subsidiary Code
-                </label>
-                <input
-                  value={viewSub.subsidiaryCode}
-                  readOnly
-                  className="w-full rounded-md border bg-slate-100 px-3 py-2 text-sm"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="mb-1 block text-sm font-medium">
-                  Subsidiary Description
-                </label>
-                <input
-                  value={viewSub.subsidiaryDescription}
-                  readOnly
-                  className="w-full rounded-md border bg-slate-100 px-3 py-2 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Location Code
-                </label>
-                <input
-                  value={viewSub.locationCode}
-                  readOnly
-                  className="w-full rounded-md border bg-slate-100 px-3 py-2 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Organization Code
-                </label>
-                <input
-                  value={viewSub.organizationCode}
-                  readOnly
-                  className="w-full rounded-md border bg-slate-100 px-3 py-2 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-        )}
+        <PageHeader
+          title="Subsidiary Master"
+          onAddNew={() => {
+            setEditingId(null);
+            reset();
+            setIsFormOpen(true);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+        />
 
         {/* Form */}
         {isFormOpen && (
-          <div className="rounded-xl bg-white p-5 shadow">
-            <h2 className="mb-4 text-lg font-medium text-slate-800">
-              {editingId === null
-                ? "Add Subsidiary"
-                : `Edit Subsidiary #${editingId}`}
-            </h2>
-
+          <FormCard
+            title={editingId === null ? "Add Subsidiary" : "Edit Subsidiary"}
+          >
             <form
               onSubmit={handleSubmit(onSubmit)}
               className="grid gap-4 md:grid-cols-2"
             >
               {/* Subsidiary Name */}
-              <div className="flex flex-col">
-                <label className="mb-1 text-sm font-medium text-slate-700">
-                  Subsidiary Name <span className="text-red-500">*</span>
-                </label>
+              <InputField
+                label="Subsidiary Name"
+                required
+                error={errors.subsidiaryName?.message}
+              >
                 <input
                   {...register("subsidiaryName")}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   placeholder="Enter Subsidiary Name"
                 />
-                {errors.subsidiaryName && (
-                  <span className="mt-1 text-xs text-red-500">
-                    {errors.subsidiaryName.message}
-                  </span>
-                )}
-              </div>
+              </InputField>
 
-              {/* Subsidiary Code (🔒 locked when editing) */}
-              <div className="flex flex-col">
-                <label className="mb-1 text-sm font-medium text-slate-700">
-                  Subsidiary Code <span className="text-red-500">*</span>
-                </label>
+              {/* Subsidiary Code */}
+              <InputField
+                label="Subsidiary Code"
+                required
+                error={errors.subsidiaryCode?.message}
+              >
                 <input
                   {...register("subsidiaryCode")}
-                  readOnly={!!editingId}
-                  className={
-                    "rounded-lg px-3 py-2 text-sm outline-none " +
-                    (editingId
-                      ? "border-slate-300 bg-slate-100 cursor-not-allowed"
-                      : "border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500")
-                  }
+                  disabled={editingId !== null}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none disabled:bg-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   placeholder="Enter Subsidiary Code"
                 />
-                {errors.subsidiaryCode && (
-                  <span className="mt-1 text-xs text-red-500">
-                    {errors.subsidiaryCode.message}
-                  </span>
-                )}
-              </div>
+              </InputField>
 
               {/* Subsidiary Description */}
-              <div className="flex flex-col md:col-span-2">
-                <label className="mb-1 text-sm font-medium text-slate-700">
-                  Subsidiary Description{" "}
-                  <span className="text-red-500">*</span>
-                </label>
+              <InputField
+                label="Subsidiary Description"
+                required
+                error={errors.subsidiaryDescription?.message}
+              >
                 <input
                   {...register("subsidiaryDescription")}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   placeholder="Enter Description"
                 />
-                {errors.subsidiaryDescription && (
-                  <span className="mt-1 text-xs text-red-500">
-                    {errors.subsidiaryDescription.message}
-                  </span>
-                )}
-              </div>
+              </InputField>
 
               {/* Location Code */}
-              <div className="flex flex-col">
-                <label className="mb-1 text-sm font-medium text-slate-700">
-                  Location Code <span className="text-red-500">*</span>
-                </label>
+              <InputField
+                label="Location Code"
+                required
+                error={errors.locationCode?.message}
+              >
                 <input
                   {...register("locationCode")}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   placeholder="Enter Location Code"
                 />
-                {errors.locationCode && (
-                  <span className="mt-1 text-xs text-red-500">
-                    {errors.locationCode.message}
-                  </span>
-                )}
-              </div>
+              </InputField>
 
               {/* Organization Code */}
-              <div className="flex flex-col">
-                <label className="mb-1 text-sm font-medium text-slate-700">
-                  Organization Code <span className="text-red-500">*</span>
-                </label>
+              <InputField
+                label="Organization Code"
+                required
+                error={errors.organizationCode?.message}
+              >
                 <input
                   {...register("organizationCode")}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   placeholder="Enter Organization Code"
                 />
-                {errors.organizationCode && (
-                  <span className="mt-1 text-xs text-red-500">
-                    {errors.organizationCode.message}
-                  </span>
-                )}
-              </div>
+              </InputField>
 
               {/* Buttons */}
               <div className="mt-2 flex gap-3 md:col-span-2">
-                <button
+                <PrimaryButton
                   type="submit"
-                  className="rounded-lg bg-green-600 px-5 py-2 text-sm font-medium text-white shadow hover:bg-green-700"
-                >
-                  {editingId === null ? "Save" : "Update"}
-                </button>
-                <button
+                  label={editingId === null ? "Save" : "Update"}
+                />
+                <SecondaryButton
                   type="button"
+                  label="Clear / Cancel"
                   onClick={handleCancel}
-                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-                >
-                  Clear / Cancel
-                </button>
+                />
               </div>
             </form>
-          </div>
+          </FormCard>
         )}
 
         {/* Data Table */}
@@ -403,7 +294,7 @@ const SubsidiaryPage: React.FC = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setViewSub(row)}
+                          onClick={() => setViewSubsidiary(row)}
                           className="text-xs font-medium text-slate-700 hover:underline"
                         >
                           View
@@ -428,6 +319,38 @@ const SubsidiaryPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* View-only Modal */}
+      <ViewModal
+        title="View Subsidiary"
+        isOpen={!!viewSubsidiary}
+        onClose={() => setViewSubsidiary(null)}
+      >
+        {viewSubsidiary && (
+          <div className="grid gap-4 md:grid-cols-2 text-sm">
+            <div>
+              <strong>Subsidiary Name:</strong>
+              <div>{viewSubsidiary.subsidiaryName}</div>
+            </div>
+            <div>
+              <strong>Subsidiary Code:</strong>
+              <div>{viewSubsidiary.subsidiaryCode}</div>
+            </div>
+            <div>
+              <strong>Description:</strong>
+              <div>{viewSubsidiary.subsidiaryDescription}</div>
+            </div>
+            <div>
+              <strong>Location Code:</strong>
+              <div>{viewSubsidiary.locationCode}</div>
+            </div>
+            <div>
+              <strong>Organization Code:</strong>
+              <div>{viewSubsidiary.organizationCode}</div>
+            </div>
+          </div>
+        )}
+      </ViewModal>
     </div>
   );
 };

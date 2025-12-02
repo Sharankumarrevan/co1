@@ -5,7 +5,14 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import { Organization } from "../types";
 import { initialOrganizations } from "../api/organizations";
 
-// ✅ Yup schema (NO addressLine2)
+import PageHeader from "../components/PageHeader";
+import FormCard from "../components/FormCard";
+import InputField from "../components/InputField";
+import PrimaryButton from "../components/PrimaryButton";
+import SecondaryButton from "../components/SecondaryButton";
+import ViewModal from "../components/ViewModal";
+
+// ✅ Yup schema
 const organizationSchema = yup.object({
   organizationName: yup.string().required("Organization Name is required"),
   organizationCode: yup.string().required("Organization Code is required"),
@@ -36,8 +43,8 @@ type OrganizationFormValues = yup.InferType<typeof organizationSchema>;
 const OrganizationPage: React.FC = () => {
   const [rows, setRows] = useState<Organization[]>(initialOrganizations);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [isFormOpen, setIsFormOpen] = useState(false); // show/hide edit/add form
-  const [viewOrg, setViewOrg] = useState<Organization | null>(null); // view-only modal
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [viewOrg, setViewOrg] = useState<Organization | null>(null);
 
   const editingRow = useMemo(
     () => rows.find((r) => r.id === editingId) ?? null,
@@ -48,7 +55,7 @@ const OrganizationPage: React.FC = () => {
     register,
     handleSubmit,
     reset,
-    setError, // to show error down the box
+    setError,
     formState: { errors },
   } = useForm<OrganizationFormValues>({
     resolver: yupResolver(organizationSchema),
@@ -67,7 +74,7 @@ const OrganizationPage: React.FC = () => {
     },
   });
 
-  // Pre-fill form on Edit
+  // Prefill when editing
   useEffect(() => {
     if (editingRow) {
       reset({
@@ -84,67 +91,76 @@ const OrganizationPage: React.FC = () => {
         financialYearStart: editingRow.financialYearStart,
       });
     } else {
-      reset({
-        organizationName: "",
-        organizationCode: "",
-        registrationNumber: "",
-        emailId: "",
-        contactNumber: "",
-        addressLine1: "",
-        city: "",
-        pinCode: "",
-        tenantCode: "",
-        status: "",
-        financialYearStart: "",
-      });
+      reset();
     }
   }, [editingRow, reset]);
 
-  // CREATE / UPDATE
-const onSubmit = (data: OrganizationFormValues) => {
-  // ✅ CHECK FOR DUPLICATE ORG CODE
-  const isDuplicate = rows.some(
-    (row) =>
-      row.organizationCode.toLowerCase() ===
-        data.organizationCode.toLowerCase() &&
-      row.id !== editingId
-  );
-
-  if (isDuplicate) {
-    setError("organizationCode", {
-      type: "manual",
-      message: "Organization Code already exists. It must be unique.",
-    });
-    return; // ❌ STOP SAVE
-  }
-
-  if (editingId === null) {
-    const newRow: Organization = {
-      id: rows.length > 0 ? Math.max(...rows.map((r) => r.id)) + 1 : 1,
-      ...data,
-    };
-
-    setRows((prev) => [...prev, newRow]);
-  } else {
-    setRows((prev) =>
-      prev.map((row) =>
-        row.id === editingId
-          ? { ...row, ...data, organizationCode: row.organizationCode }
-          : row
-      )
+  // ✅ SAVE (Create / Update) with uniqueness checks
+  const onSubmit = (data: OrganizationFormValues) => {
+    // 1) Unique Organization Code
+    const orgCodeDuplicate = rows.some(
+      (row) =>
+        row.organizationCode.toLowerCase() ===
+          data.organizationCode.toLowerCase() &&
+        row.id !== editingId
     );
-  }
 
-  setEditingId(null);
-  reset();
-  setIsFormOpen(false); // ✅ close form
-};
+    if (orgCodeDuplicate) {
+      setError("organizationCode", {
+        type: "manual",
+        message: "Organization Code already exists. It must be unique.",
+      });
+      return;
+    }
 
+    // 2) Unique Tenant Code
+    const tenantDuplicate = rows.some(
+      (row) =>
+        row.tenantCode.toLowerCase() === data.tenantCode.toLowerCase() &&
+        row.id !== editingId
+    );
 
+    if (tenantDuplicate) {
+      setError("tenantCode", {
+        type: "manual",
+        message: "Tenant Code already exists. It must be unique.",
+      });
+      return;
+    }
+
+    if (editingId === null) {
+      // Create
+      const newRow: Organization = {
+        id: rows.length > 0 ? Math.max(...rows.map((r) => r.id)) + 1 : 1,
+        ...data,
+      };
+      setRows((prev) => [...prev, newRow]);
+    } else {
+      // Update – keep organizationCode fixed
+      setRows((prev) =>
+        prev.map((row) =>
+          row.id === editingId
+            ? { ...row, ...data, organizationCode: row.organizationCode }
+            : row
+        )
+      );
+    }
+
+    setEditingId(null);
+    reset();
+    setIsFormOpen(false);
+  };
+
+  const handleAddNew = () => {
+    setEditingId(null);
+    reset();
+    setIsFormOpen(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const handleEdit = (row: Organization) => {
     setEditingId(row.id);
-    setIsFormOpen(true); // open form with that row
+    setIsFormOpen(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -162,215 +178,157 @@ const onSubmit = (data: OrganizationFormValues) => {
   const handleCancel = () => {
     setEditingId(null);
     reset();
-    setIsFormOpen(false); // hide form
+    setIsFormOpen(false);
   };
 
   return (
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="mx-auto max-w-6xl space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-slate-800">
-            Organization Master
-          </h1>
-          <button
-            type="button"
-            onClick={() => {
-              setEditingId(null);
-              reset();
-              setIsFormOpen(true); // open empty form
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-blue-700"
-          >
-            + Add New
-          </button>
-        </div>
+        {/* Header (reusable) */}
+        <PageHeader title="Organization Master" onAddNew={handleAddNew} />
 
-        {/* Form Card – only when isFormOpen */}
+        {/* Form (reusable pieces) */}
         {isFormOpen && (
-          <div className="rounded-xl bg-white p-6 shadow">
-            <h2 className="mb-5 text-lg font-semibold text-slate-800">
-              {editingId === null ? "Add Organization" : "Edit Organization"}
-            </h2>
-
+          <FormCard title={editingId === null ? "Add Organization" : "Edit Organization"}>
             <form
               onSubmit={handleSubmit(onSubmit)}
               className="grid gap-4 md:grid-cols-2"
             >
-              {/* Organization Name */}
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Organization Name *
-                </label>
+              <InputField
+                label="Organization Name"
+                required
+                error={errors.organizationName?.message}
+              >
                 <input
                   {...register("organizationName")}
-                  className="w-full rounded-md border px-3 py-2"
+                  className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
-                <p className="text-xs text-red-500">
-                  {errors.organizationName?.message}
-                </p>
-              </div>
+              </InputField>
 
-              {/* Organization Code */}
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Organization Code *
-                </label>
+              <InputField
+                label="Organization Code"
+                required
+                error={errors.organizationCode?.message}
+              >
                 <input
                   {...register("organizationCode")}
-                  readOnly={!!editingId} 
-                  className={"w-full rounded-md border px-3 py-2" + (editingId ?
-                     "bg-slate-100 cursor-not-allowed" : "" )}
+                  disabled={editingId !== null} // 🔒 cannot change when editing
+                  className="w-full rounded-md border px-3 py-2 text-sm outline-none disabled:bg-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
-                <p className="text-xs text-red-500">
-                  {errors.organizationCode?.message}
-                </p>
-              </div>
+              </InputField>
 
-              {/* Registration Number */}
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Registration Number *
-                </label>
+              <InputField
+                label="Registration Number"
+                required
+                error={errors.registrationNumber?.message}
+              >
                 <input
                   {...register("registrationNumber")}
-                  className="w-full rounded-md border px-3 py-2"
+                  className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
-                <p className="text-xs text-red-500">
-                  {errors.registrationNumber?.message}
-                </p>
-              </div>
+              </InputField>
 
-              {/* Email */}
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Email *
-                </label>
+              <InputField
+                label="Email"
+                required
+                error={errors.emailId?.message}
+              >
                 <input
                   {...register("emailId")}
-                  className="w-full rounded-md border px-3 py-2"
+                  className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
-                <p className="text-xs text-red-500">
-                  {errors.emailId?.message}
-                </p>
-              </div>
+              </InputField>
 
-              {/* Contact Number */}
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Contact Number *
-                </label>
+              <InputField
+                label="Contact Number"
+                required
+                error={errors.contactNumber?.message}
+              >
                 <input
                   {...register("contactNumber")}
-                  className="w-full rounded-md border px-3 py-2"
+                  className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
-                <p className="text-xs text-red-500">
-                  {errors.contactNumber?.message}
-                </p>
-              </div>
+              </InputField>
 
-              {/* Address Line 1 */}
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Address Line 1 *
-                </label>
+              <InputField
+                label="Address Line 1"
+                required
+                error={errors.addressLine1?.message}
+              >
                 <input
                   {...register("addressLine1")}
-                  className="w-full rounded-md border px-3 py-2"
+                  className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
-                <p className="text-xs text-red-500">
-                  {errors.addressLine1?.message}
-                </p>
-              </div>
+              </InputField>
 
-              {/* City */}
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  City *
-                </label>
+              <InputField
+                label="City"
+                required
+                error={errors.city?.message}
+              >
                 <input
                   {...register("city")}
-                  className="w-full rounded-md border px-3 py-2"
+                  className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
-                <p className="text-xs text-red-500">{errors.city?.message}</p>
-              </div>
+              </InputField>
 
-              {/* Pin Code */}
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Pin Code *
-                </label>
+              <InputField
+                label="Pin Code"
+                required
+                error={errors.pinCode?.message}
+              >
                 <input
                   {...register("pinCode")}
-                  className="w-full rounded-md border px-3 py-2"
+                  className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
-                <p className="text-xs text-red-500">
-                  {errors.pinCode?.message}
-                </p>
-              </div>
+              </InputField>
 
-              {/* Tenant Code */}
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Tenant Code *
-                </label>
+              <InputField
+                label="Tenant Code"
+                required
+                error={errors.tenantCode?.message}
+              >
                 <input
                   {...register("tenantCode")}
-                  className="w-full rounded-md border px-3 py-2"
+                  className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
-                <p className="text-xs text-red-500">
-                  {errors.tenantCode?.message}
-                </p>
-              </div>
+              </InputField>
 
-              {/* Status */}
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Status *
-                </label>
+              <InputField
+                label="Status"
+                required
+                error={errors.status?.message}
+              >
                 <input
                   {...register("status")}
-                  className="w-full rounded-md border px-3 py-2"
+                  className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
-                <p className="text-xs text-red-500">
-                  {errors.status?.message}
-                </p>
-              </div>
+              </InputField>
 
-              {/* Financial Year Start */}
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Financial Year Start *
-                </label>
+              <InputField
+                label="Financial Year Start"
+                required
+                error={errors.financialYearStart?.message}
+              >
                 <input
                   {...register("financialYearStart")}
-                  className="w-full rounded-md border px-3 py-2"
+                  className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
-                <p className="text-xs text-red-500">
-                  {errors.financialYearStart?.message}
-                </p>
-              </div>
+              </InputField>
 
-              {/* Buttons */}
               <div className="mt-5 flex gap-4 md:col-span-2">
-                <button
+                <PrimaryButton
                   type="submit"
-                  className="rounded-md bg-green-600 px-6 py-2 text-white"
-                >
-                  {editingId ? "Update" : "Save"}
-                </button>
-
-                <button
+                  label={editingId ? "Update" : "Save"}
+                />
+                <SecondaryButton
                   type="button"
+                  label="Clear / Cancel"
                   onClick={handleCancel}
-                  className="rounded-md border px-6 py-2"
-                >
-                  Clear / Cancel
-                </button>
+                />
               </div>
             </form>
-          </div>
+          </FormCard>
         )}
 
         {/* Data Table */}
@@ -417,28 +375,21 @@ const onSubmit = (data: OrganizationFormValues) => {
                       <td className="px-3 py-2">{row.registrationNumber}</td>
                       <td className="px-3 py-2">{row.emailId}</td>
                       <td className="px-3 py-2">{row.city}</td>
-                      <td className="px-3 py-2 text-center">
-
-                        {/* Edit */}
+                      <td className="px-3 py-2 text-center space-x-3">
                         <button
                           type="button"
                           onClick={() => handleEdit(row)}
-                          className="mr-3 text-xs font-medium text-blue-600 hover:underline"
+                          className="text-xs font-medium text-blue-600 hover:underline"
                         >
                           Edit
                         </button>
-
-                        {/* View – read only */}
                         <button
-                          type = "button"
+                          type="button"
                           onClick={() => setViewOrg(row)}
-                          className="mr-3 text-xs font-medium text-slate-700 hover:underline"
-                          >
-                            view
-
+                          className="text-xs font-medium text-slate-700 hover:underline"
+                        >
+                          View
                         </button>
-
-                        {/* Delete */}
                         <button
                           type="button"
                           onClick={() => handleDelete(row.id)}
@@ -460,160 +411,61 @@ const onSubmit = (data: OrganizationFormValues) => {
         </div>
       </div>
 
-      {/* View-only FORM-style modal */}
-      {viewOrg && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-5xl rounded-xl bg-white p-6 shadow-lg">
-            <h3 className="mb-5 text-lg font-semibold text-slate-800">
-              View Organization
-            </h3>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Organization Name
-                </label>
-                <input
-                  value={viewOrg.organizationName}
-                  readOnly
-                  disabled
-                  className="w-full rounded-md border px-3 py-2 bg-slate-100 text-slate-700"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Organization Code
-                </label>
-                <input
-                  value={viewOrg.organizationCode}
-                  readOnly
-                  disabled
-                  className="w-full rounded-md border px-3 py-2 bg-slate-100 text-slate-700"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Registration Number
-                </label>
-                <input
-                  value={viewOrg.registrationNumber}
-                  readOnly
-                  disabled
-                  className="w-full rounded-md border px-3 py-2 bg-slate-100 text-slate-700"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Email
-                </label>
-                <input
-                  value={viewOrg.emailId}
-                  readOnly
-                  disabled
-                  className="w-full rounded-md border px-3 py-2 bg-slate-100 text-slate-700"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Contact Number
-                </label>
-                <input
-                  value={viewOrg.contactNumber}
-                  readOnly
-                  disabled
-                  className="w-full rounded-md border px-3 py-2 bg-slate-100 text-slate-700"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Address Line 1
-                </label>
-                <input
-                  value={viewOrg.addressLine1}
-                  readOnly
-                  disabled
-                  className="w-full rounded-md border px-3 py-2 bg-slate-100 text-slate-700"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  City
-                </label>
-                <input
-                  value={viewOrg.city}
-                  readOnly
-                  disabled
-                  className="w-full rounded-md border px-3 py-2 bg-slate-100 text-slate-700"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Pin Code
-                </label>
-                <input
-                  value={viewOrg.pinCode}
-                  readOnly
-                  disabled
-                  className="w-full rounded-md border px-3 py-2 bg-slate-100 text-slate-700"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Tenant Code
-                </label>
-                <input
-                  value={viewOrg.tenantCode}
-                  readOnly
-                  disabled
-                  className="w-full rounded-md border px-3 py-2 bg-slate-100 text-slate-700"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Status
-                </label>
-                <input
-                  value={viewOrg.status}
-                  readOnly
-                  disabled
-                  className="w-full rounded-md border px-3 py-2 bg-slate-100 text-slate-700"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Financial Year Start
-                </label>
-                <input
-                  value={viewOrg.financialYearStart}
-                  readOnly
-                  disabled
-                  className="w-full rounded-md border px-3 py-2 bg-slate-100 text-slate-700"
-                />
-              </div>
+      {/* View-only Modal (reusable) */}
+      <ViewModal
+        title="View Organization"
+        isOpen={!!viewOrg}
+        onClose={() => setViewOrg(null)}
+      >
+        {viewOrg && (
+          <div className="grid gap-4 md:grid-cols-2 text-sm">
+            <div>
+              <strong>Organization Name:</strong>
+              <div>{viewOrg.organizationName}</div>
             </div>
-
-            <div className="mt-6 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setViewOrg(null)}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-              >
-                Close
-              </button>
+            <div>
+              <strong>Organization Code:</strong>
+              <div>{viewOrg.organizationCode}</div>
+            </div>
+            <div>
+              <strong>Registration Number:</strong>
+              <div>{viewOrg.registrationNumber}</div>
+            </div>
+            <div>
+              <strong>Email:</strong>
+              <div>{viewOrg.emailId}</div>
+            </div>
+            <div>
+              <strong>Contact Number:</strong>
+              <div>{viewOrg.contactNumber}</div>
+            </div>
+            <div>
+              <strong>Address Line 1:</strong>
+              <div>{viewOrg.addressLine1}</div>
+            </div>
+            <div>
+              <strong>City:</strong>
+              <div>{viewOrg.city}</div>
+            </div>
+            <div>
+              <strong>Pin Code:</strong>
+              <div>{viewOrg.pinCode}</div>
+            </div>
+            <div>
+              <strong>Tenant Code:</strong>
+              <div>{viewOrg.tenantCode}</div>
+            </div>
+            <div>
+              <strong>Status:</strong>
+              <div>{viewOrg.status}</div>
+            </div>
+            <div>
+              <strong>Financial Year Start:</strong>
+              <div>{viewOrg.financialYearStart}</div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </ViewModal>
     </div>
   );
 };

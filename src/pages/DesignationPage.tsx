@@ -5,6 +5,13 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import { Designation } from "../types";
 import { initialDesignations } from "../api/Designation";
 
+import PageHeader from "../components/PageHeader";
+import FormCard from "../components/FormCard";
+import InputField from "../components/InputField";
+import PrimaryButton from "../components/PrimaryButton";
+import SecondaryButton from "../components/SecondaryButton";
+import ViewModal from "../components/ViewModal";
+
 // ✅ Yup schema – only two required fields
 const designationSchema = yup.object({
   designationCode: yup.string().required("Designation Code is required"),
@@ -30,6 +37,7 @@ const DesignationPage: React.FC = () => {
     register,
     handleSubmit,
     reset,
+    setError, // 👈 needed for duplicate validation
     formState: { errors },
   } = useForm<DesignationFormValues>({
     resolver: yupResolver(designationSchema),
@@ -47,15 +55,29 @@ const DesignationPage: React.FC = () => {
         designationName: editingRow.designationName,
       });
     } else {
-      reset({
-        designationCode: "",
-        designationName: "",
-      });
+      reset();
     }
   }, [editingRow, reset]);
 
-  // CREATE / UPDATE
+  // CREATE / UPDATE with duplicate check
   const onSubmit = (data: DesignationFormValues) => {
+    // 🔍 1) DUPLICATE CHECK for designationCode
+    const isDuplicate = rows.some(
+      (row) =>
+        row.designationCode.toLowerCase() ===
+          data.designationCode.toLowerCase() &&
+        row.id !== editingId // ignore same row when editing
+    );
+
+    if (isDuplicate) {
+      setError("designationCode", {
+        type: "manual",
+        message: "Designation Code already exists. It must be unique.",
+      });
+      return; // ❌ stop save
+    }
+
+    // 2) Normal create / update
     if (editingId === null) {
       const newRow: Designation = {
         id: rows.length > 0 ? Math.max(...rows.map((r) => r.id)) + 1 : 1,
@@ -63,11 +85,10 @@ const DesignationPage: React.FC = () => {
       };
       setRows((prev) => [...prev, newRow]);
     } else {
-      // 🔒 keep code same on update
       setRows((prev) =>
         prev.map((row) =>
           row.id === editingId
-            ? { ...row, ...data, designationCode: row.designationCode }
+            ? { ...row, ...data, designationCode: row.designationCode } // 🔒 keep code fixed
             : row
         )
       );
@@ -81,7 +102,6 @@ const DesignationPage: React.FC = () => {
   const handleEdit = (row: Designation) => {
     setEditingId(row.id);
     setIsFormOpen(true);
-    setViewDesignation(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -92,9 +112,6 @@ const DesignationPage: React.FC = () => {
         setEditingId(null);
         reset();
         setIsFormOpen(false);
-      }
-      if (viewDesignation && viewDesignation.id === id) {
-        setViewDesignation(null);
       }
     }
   };
@@ -109,136 +126,63 @@ const DesignationPage: React.FC = () => {
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="mx-auto max-w-6xl space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-slate-800">
-            Designation Master
-          </h1>
-          <button
-            type="button"
-            onClick={() => {
-              setEditingId(null);
-              reset();
-              setIsFormOpen(true);
-              setViewDesignation(null);
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-blue-700"
-          >
-            + Add New
-          </button>
-        </div>
-
-        {/* 🔍 VIEW-ONLY PANEL */}
-        {viewDesignation && (
-          <div className="rounded-xl bg-white p-5 shadow">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-800">
-                View Designation
-              </h2>
-              <button
-                type="button"
-                onClick={() => setViewDesignation(null)}
-                className="text-sm text-slate-500 hover:underline"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Designation Code
-                </label>
-                <input
-                  value={viewDesignation.designationCode}
-                  readOnly
-                  className="w-full rounded-md border bg-slate-100 px-3 py-2 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Designation Name
-                </label>
-                <input
-                  value={viewDesignation.designationName}
-                  readOnly
-                  className="w-full rounded-md border bg-slate-100 px-3 py-2 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-        )}
+        <PageHeader
+          title="Designation Master"
+          onAddNew={() => {
+            setEditingId(null);
+            reset();
+            setIsFormOpen(true);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+        />
 
         {/* Form Card */}
         {isFormOpen && (
-          <div className="rounded-xl bg-white p-6 shadow">
-            <h2 className="mb-5 text-lg font-semibold text-slate-800">
-              {editingId === null ? "Add Designation" : "Edit Designation"}
-            </h2>
-
+          <FormCard
+            title={editingId === null ? "Add Designation" : "Edit Designation"}
+          >
             <form
               onSubmit={handleSubmit(onSubmit)}
               className="grid gap-4 md:grid-cols-2"
             >
-              {/* Designation Code (🔒 when editing) */}
-              <div className="flex flex-col">
-                <label className="mb-1 text-sm font-medium text-slate-700">
-                  Designation Code <span className="text-red-500">*</span>
-                </label>
+              <InputField
+                label="Designation Code"
+                required
+                error={errors.designationCode?.message}
+              >
                 <input
                   {...register("designationCode")}
-                  readOnly={!!editingId}
-                  className={
-                    "rounded-lg px-3 py-2 text-sm outline-none " +
-                    (editingId
-                      ? "border-slate-300 bg-slate-100 cursor-not-allowed"
-                      : "border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500")
-                  }
+                  disabled={editingId !== null}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none disabled:bg-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   placeholder="Enter Designation Code"
                 />
-                {errors.designationCode && (
-                  <span className="mt-1 text-xs text-red-500">
-                    {errors.designationCode.message}
-                  </span>
-                )}
-              </div>
+              </InputField>
 
-              {/* Designation Name */}
-              <div className="flex flex-col">
-                <label className="mb-1 text-sm font-medium text-slate-700">
-                  Designation Name <span className="text-red-500">*</span>
-                </label>
+              <InputField
+                label="Designation Name"
+                required
+                error={errors.designationName?.message}
+              >
                 <input
                   {...register("designationName")}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   placeholder="Enter Designation Name"
                 />
-                {errors.designationName && (
-                  <span className="mt-1 text-xs text-red-500">
-                    {errors.designationName.message}
-                  </span>
-                )}
-              </div>
+              </InputField>
 
-              {/* Buttons */}
               <div className="mt-4 flex gap-3 md:col-span-2">
-                <button
+                <PrimaryButton
                   type="submit"
-                  className="rounded-lg bg-green-600 px-5 py-2 text-sm font-medium text-white shadow hover:bg-green-700"
-                >
-                  {editingId === null ? "Save" : "Update"}
-                </button>
-                <button
+                  label={editingId === null ? "Save" : "Update"}
+                />
+                <SecondaryButton
                   type="button"
+                  label="Clear / Cancel"
                   onClick={handleCancel}
-                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-                >
-                  Clear / Cancel
-                </button>
+                />
               </div>
             </form>
-          </div>
+          </FormCard>
         )}
 
         {/* Data Table */}
@@ -314,6 +258,26 @@ const DesignationPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* View-only Modal */}
+      <ViewModal
+        title="View Designation"
+        isOpen={!!viewDesignation}
+        onClose={() => setViewDesignation(null)}
+      >
+        {viewDesignation && (
+          <div className="grid gap-4 text-sm">
+            <div>
+              <strong>Designation Code:</strong>
+              <div>{viewDesignation.designationCode}</div>
+            </div>
+            <div>
+              <strong>Designation Name:</strong>
+              <div>{viewDesignation.designationName}</div>
+            </div>
+          </div>
+        )}
+      </ViewModal>
     </div>
   );
 };
