@@ -12,7 +12,6 @@ import PrimaryButton from "../components/PrimaryButton";
 import SecondaryButton from "../components/SecondaryButton";
 import ViewModal from "../components/ViewModal";
 
-// ✅ Yup schema – only two required fields
 const designationSchema = yup.object({
   designationCode: yup.string().required("Designation Code is required"),
   designationName: yup.string().required("Designation Name is required"),
@@ -37,7 +36,7 @@ const DesignationPage: React.FC = () => {
     register,
     handleSubmit,
     reset,
-    setError, // 👈 needed for duplicate validation
+    setError, 
     formState: { errors },
   } = useForm<DesignationFormValues>({
     resolver: yupResolver(designationSchema),
@@ -58,10 +57,8 @@ const DesignationPage: React.FC = () => {
       reset();
     }
   }, [editingRow, reset]);
-
-  // CREATE / UPDATE with duplicate check
+  
   const onSubmit = (data: DesignationFormValues) => {
-    // 🔍 1) DUPLICATE CHECK for designationCode
     const isDuplicate = rows.some(
       (row) =>
         row.designationCode.toLowerCase() ===
@@ -74,10 +71,8 @@ const DesignationPage: React.FC = () => {
         type: "manual",
         message: "Designation Code already exists. It must be unique.",
       });
-      return; // ❌ stop save
+      return; 
     }
-
-    // 2) Normal create / update
     if (editingId === null) {
       const newRow: Designation = {
         id: rows.length > 0 ? Math.max(...rows.map((r) => r.id)) + 1 : 1,
@@ -88,7 +83,7 @@ const DesignationPage: React.FC = () => {
       setRows((prev) =>
         prev.map((row) =>
           row.id === editingId
-            ? { ...row, ...data, designationCode: row.designationCode } // 🔒 keep code fixed
+            ? { ...row, ...data, designationCode: row.designationCode } 
             : row
         )
       );
@@ -136,7 +131,7 @@ const DesignationPage: React.FC = () => {
           }}
         />
 
-        {/* Form Card */}
+        // Form Card 
         {isFormOpen && (
           <FormCard
             title={editingId === null ? "Add Designation" : "Edit Designation"}
