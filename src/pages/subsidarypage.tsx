@@ -93,7 +93,7 @@ const SubsidiaryPage: React.FC = () => {
       setRows((prev) =>
         prev.map((row) =>
           row.id === editingId
-            ? { ...row, ...data, subsidiaryCode: row.subsidiaryCode } // keep code fixed
+            ? { ...row, ...data, subsidiaryCode: row.subsidiaryCode }
             : row
         )
       );
