@@ -12,7 +12,6 @@ import PrimaryButton from "../components/PrimaryButton";
 import SecondaryButton from "../components/SecondaryButton";
 import ViewModal from "../components/ViewModal";
 
-// ✅ Yup validation schema
 const subsidiarySchema = yup.object({
   subsidiaryName: yup.string().required("Subsidiary Name is required"),
   subsidiaryCode: yup
@@ -43,7 +42,7 @@ const SubsidiaryPage: React.FC = () => {
     register,
     handleSubmit,
     reset,
-    setError, // 👈 for duplicate validation
+    setError, 
     formState: { errors },
   } = useForm<SubsidiaryFormValues>({
     resolver: yupResolver(subsidiarySchema),
@@ -56,7 +55,6 @@ const SubsidiaryPage: React.FC = () => {
     },
   });
 
-  // when we click Edit, pre-fill the form
   useEffect(() => {
     if (editingRow) {
       reset({
@@ -71,9 +69,7 @@ const SubsidiaryPage: React.FC = () => {
     }
   }, [editingRow, reset]);
 
-  // CREATE / UPDATE with duplicate check
   const onSubmit = (data: SubsidiaryFormValues) => {
-    // 🔍 1) DUPLICATE CHECK for subsidiaryCode
     const isDuplicate = rows.some(
       (row) =>
         row.subsidiaryCode.toLowerCase() ===
@@ -85,10 +81,8 @@ const SubsidiaryPage: React.FC = () => {
         type: "manual",
         message: "Subsidiary Code already exists. It must be unique.",
       });
-      return; // ❌ stop save
+      return; 
     }
-
-    // 2) Normal create / update
     if (editingId === null) {
       const newRow: Subsidiary = {
         id: rows.length > 0 ? Math.max(...rows.map((r) => r.id)) + 1 : 1,
