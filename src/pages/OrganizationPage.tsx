@@ -12,7 +12,6 @@ import PrimaryButton from "../components/PrimaryButton";
 import SecondaryButton from "../components/SecondaryButton";
 import ViewModal from "../components/ViewModal";
 
-// ✅ Yup schema
 const organizationSchema = yup.object({
   organizationName: yup.string().required("Organization Name is required"),
   organizationCode: yup.string().required("Organization Code is required"),
@@ -74,7 +73,6 @@ const OrganizationPage: React.FC = () => {
     },
   });
 
-  // Prefill when editing
   useEffect(() => {
     if (editingRow) {
       reset({
@@ -95,9 +93,7 @@ const OrganizationPage: React.FC = () => {
     }
   }, [editingRow, reset]);
 
-  // ✅ SAVE (Create / Update) with uniqueness checks
   const onSubmit = (data: OrganizationFormValues) => {
-    // 1) Unique Organization Code
     const orgCodeDuplicate = rows.some(
       (row) =>
         row.organizationCode.toLowerCase() ===
@@ -113,7 +109,6 @@ const OrganizationPage: React.FC = () => {
       return;
     }
 
-    // 2) Unique Tenant Code
     const tenantDuplicate = rows.some(
       (row) =>
         row.tenantCode.toLowerCase() === data.tenantCode.toLowerCase() &&
@@ -129,14 +124,12 @@ const OrganizationPage: React.FC = () => {
     }
 
     if (editingId === null) {
-      // Create
       const newRow: Organization = {
         id: rows.length > 0 ? Math.max(...rows.map((r) => r.id)) + 1 : 1,
         ...data,
       };
       setRows((prev) => [...prev, newRow]);
     } else {
-      // Update – keep organizationCode fixed
       setRows((prev) =>
         prev.map((row) =>
           row.id === editingId
@@ -212,7 +205,7 @@ const OrganizationPage: React.FC = () => {
               >
                 <input
                   {...register("organizationCode")}
-                  disabled={editingId !== null} // 🔒 cannot change when editing
+                  disabled={editingId !== null}  
                   className="w-full rounded-md border px-3 py-2 text-sm outline-none disabled:bg-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
               </InputField>
