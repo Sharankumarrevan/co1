@@ -12,7 +12,6 @@ import PrimaryButton from "../components/PrimaryButton";
 import SecondaryButton from "../components/SecondaryButton";
 import ViewModal from "../components/ViewModal";
 
-// ✅ Yup validation schema
 const locationSchema = yup.object({
   locationCode: yup.string().required("Location Code is required"),
   locationName: yup.string().required("Location Name is required"),
@@ -43,7 +42,6 @@ const LocationPage: React.FC = () => {
     register,
     handleSubmit,
     reset,
-    setError, // 👈 added for duplicate validation
     formState: { errors },
   } = useForm<LocationFormValues>({
     resolver: yupResolver(locationSchema),
@@ -57,8 +55,7 @@ const LocationPage: React.FC = () => {
       pincode: "",
     },
   });
-
-  // Prefill form when editing
+  
   useEffect(() => {
     if (editingRow) {
       reset({
@@ -75,9 +72,7 @@ const LocationPage: React.FC = () => {
     }
   }, [editingRow, reset]);
 
-  // CREATE / UPDATE with duplicate check
   const onSubmit = (data: LocationFormValues) => {
-    // 🔍 1) DUPLICATE CHECK for locationCode
     const isDuplicate = rows.some(
       (row) =>
         row.locationCode.toLowerCase() === data.locationCode.toLowerCase() &&
@@ -89,10 +84,9 @@ const LocationPage: React.FC = () => {
         type: "manual",
         message: "Location Code already exists. It must be unique.",
       });
-      return; // ❌ stop save
+      return; 
     }
 
-    // 2) Normal create/update
     if (editingId === null) {
       const newRow: Location = {
         id: rows.length > 0 ? Math.max(...rows.map((r) => r.id)) + 1 : 1,
@@ -103,7 +97,7 @@ const LocationPage: React.FC = () => {
       setRows((prev) =>
         prev.map((row) =>
           row.id === editingId
-            ? { ...row, ...data, locationCode: row.locationCode } // keep code fixed
+            ? { ...row, ...data, locationCode: row.locationCode } 
             : row
         )
       );
